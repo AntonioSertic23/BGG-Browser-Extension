@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BGG Price Paid Total",
-  "version": "1.2.3",
+  "version": "1.3.3",
   "description": "Sum the Price Paid values from your BoardGameGeek collection Private Info.",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["https://boardgamegeek.com/*"],

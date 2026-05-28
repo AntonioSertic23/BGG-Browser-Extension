@@ -65,6 +65,20 @@ A game is considered **paid off** when:
 
 Example: a game that cost €10 is paid off after 10 plays if you set the cost per play to €1.
 
+## Expansion plays
+
+On BGG, expansions are often shown **directly below their base game** in the collection list. The extension uses that page order:
+
+- reads rows top to bottom on the collection page
+- when a **priced base game** is followed by **unpriced expansions**, their plays are added to the base game's payoff
+- unpriced expansions are still listed separately at the bottom of the report
+
+Example: Nemesis cost €200 (base game only), 14 base plays + 5 plays on each of two unpriced expansions listed below it = **24 effective plays**.
+
+If you later add a **Price Paid** to an expansion on BGG, it will be tracked on its own instead of rolling up into the base game.
+
+Expansion rollup uses the **current collection page** layout. Run the extension while Nemesis and its expansions are visible together on the page.
+
 ## Notes
 
 - **Private Info** and **Price Paid** are required for price totals.

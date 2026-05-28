@@ -8,6 +8,10 @@ const payoffSummaryEl = document.getElementById("payoff-summary");
 const controlsEl = document.getElementById("controls");
 const noticeEl = document.getElementById("notice");
 const gamesEl = document.getElementById("games");
+const expansionsPanelEl = document.getElementById("expansions-panel");
+const expansionsDetailsEl = document.getElementById("expansions-details");
+const expansionsSummaryCountEl = document.getElementById("expansions-summary-count");
+const expansionsListEl = document.getElementById("expansions-list");
 const verifyEl = document.getElementById("verify");
 const searchEl = document.getElementById("search");
 const sortEl = document.getElementById("sort");
@@ -26,6 +30,7 @@ function showError(message) {
   payoffSummaryEl.classList.add("hidden");
   controlsEl.classList.add("hidden");
   gamesEl.classList.add("hidden");
+  expansionsPanelEl.classList.add("hidden");
   verifyEl.classList.add("hidden");
 }
 
@@ -189,6 +194,69 @@ function renderProgressBar(percent, isPaidOff) {
   return bar;
 }
 
+function displayName(name) {
+  return BggPriceParser.normalizeGameName(name);
+}
+
+function renderLinkedExpansions(game) {
+  if (!game.linkedExpansions?.length) {
+    return null;
+  }
+
+  const list = document.createElement("ul");
+  list.className = "linked-expansions";
+
+  for (const expansion of game.linkedExpansions) {
+    const item = document.createElement("li");
+    item.innerHTML = `
+      <span class="linked-expansion-name">${escapeHtml(displayName(expansion.name))}</span>
+      <span class="linked-expansion-plays">${expansion.numPlays} play${expansion.numPlays === 1 ? "" : "s"}</span>
+    `;
+    list.appendChild(item);
+  }
+
+  return list;
+}
+
+function renderExpansionsPanel() {
+  const expansions = reportData.unpricedExpansions || [];
+  expansionsListEl.innerHTML = "";
+
+  if (expansions.length === 0) {
+    expansionsPanelEl.classList.add("hidden");
+    return;
+  }
+
+  expansionsPanelEl.classList.remove("hidden");
+  expansionsDetailsEl.open = false;
+  expansionsSummaryCountEl.textContent = `${expansions.length} item${expansions.length === 1 ? "" : "s"}`;
+
+  for (const expansion of expansions) {
+    const row = document.createElement("article");
+    row.className = "expansion-row";
+
+    const linkedText = expansion.rollsUpToBase
+      ? displayName(expansion.linkedBaseName)
+      : "Not linked to a priced base game in your collection";
+
+    const info = document.createElement("div");
+    info.className = "expansion-info";
+    info.innerHTML = `
+      <div class="expansion-name">${escapeHtml(displayName(expansion.name))}</div>
+      <div class="expansion-meta">${expansion.numPlays} play${expansion.numPlays === 1 ? "" : "s"} · ${escapeHtml(linkedText)}</div>
+    `;
+
+    const badge = document.createElement("span");
+    badge.className = `badge ${expansion.rollsUpToBase ? "badge-neutral" : "badge-muted"}`;
+    badge.textContent = expansion.rollsUpToBase ? "Rolled up" : "Standalone";
+
+    row.appendChild(renderThumb(expansion));
+    row.appendChild(info);
+    row.appendChild(badge);
+    expansionsListEl.appendChild(row);
+  }
+}
+
 function renderGames() {
   const games = getFilteredGames();
   gamesEl.innerHTML = "";
@@ -209,17 +277,23 @@ function renderGames() {
       ? `<span class="badge badge-good">Paid off</span>`
       : `<span class="badge badge-warn">${game.payoff.playsRemaining} play${game.payoff.playsRemaining === 1 ? "" : "s"} to go</span>`;
 
+    const playsText = BggPriceParser.formatPlaysBreakdownHtml(game.payoff);
     const metaText = game.payoff.isPaidOff
-      ? `${BggPriceParser.formatMoney(game.amount, game.currency)} · ${game.payoff.numPlays} play${game.payoff.numPlays === 1 ? "" : "s"}`
-      : `${BggPriceParser.formatMoney(game.amount, game.currency)} · ${game.payoff.numPlays} play${game.payoff.numPlays === 1 ? "" : "s"} · ${game.payoff.playsRemaining} more to break even`;
+      ? `${BggPriceParser.formatMoney(game.amount, game.currency)} · ${playsText}`
+      : `${BggPriceParser.formatMoney(game.amount, game.currency)} · ${playsText} · ${game.payoff.playsRemaining} more to break even`;
 
     info.innerHTML = `
       <div class="game-topline">
-        <div class="game-name">${escapeHtml(game.name)}</div>
+        <div class="game-name">${escapeHtml(displayName(game.name))}</div>
         ${statusText}
       </div>
       <div class="game-meta">${metaText}</div>
     `;
+
+    const linkedExpansions = renderLinkedExpansions(game);
+    if (linkedExpansions) {
+      info.appendChild(linkedExpansions);
+    }
 
     info.appendChild(renderProgressBar(game.payoff.progressPercent, game.payoff.isPaidOff));
 
@@ -260,6 +334,10 @@ function renderVerify() {
     );
   }
 
+  if (reportData.expansionPlaysRolledUp > 0) {
+    lines.push(`${reportData.expansionPlaysRolledUp} expansion plays were counted toward priced base games.`);
+  }
+
   if (reportData.warning) {
     lines.push(`Note: ${reportData.warning}`);
   }
@@ -277,18 +355,27 @@ function renderReport(data) {
   verifyEl.classList.remove("hidden");
 
   const user = data.collectionUsername ? `@${data.collectionUsername}` : "your collection";
-  subtitleEl.textContent = `${user} · ${data.games.length} priced games`;
+  const expansionNote =
+    data.expansionPlaysRolledUp > 0 ? ` · ${data.expansionPlaysRolledUp} expansion plays rolled up` : "";
+  subtitleEl.textContent = `${user} · ${data.games.length} priced games${expansionNote}`;
 
   renderSummaryTotals(data.totals);
   renderPayoffSummary();
   renderGames();
+  renderExpansionsPanel();
   renderVerify();
 
   const notices = [];
   if (data.warning) notices.push(data.warning);
   if (data.duplicatesRemoved > 0) notices.push(`${data.duplicatesRemoved} duplicates removed.`);
-  if (data.source !== "api") {
-    notices.push("Play counts may be incomplete when not loaded from the full BGG API.");
+  if ((data.expansionPlaysRolledUp || 0) > 0) {
+    notices.push(
+      "Unpriced rows listed after a base game on this page had their plays added to that base game.",
+    );
+  } else if (data.source === "api") {
+    notices.push(
+      "Expansion play rollup uses the collection page layout. Make sure the base game and its unpriced expansions are visible together on the page.",
+    );
   }
   if (notices.length) {
     noticeEl.classList.remove("hidden");
@@ -327,6 +414,7 @@ function applySettingsFromInputs() {
   if (reportData) {
     renderPayoffSummary();
     renderGames();
+    renderExpansionsPanel();
     renderVerify();
   }
 }

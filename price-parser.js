@@ -195,7 +195,26 @@ function finalizeGameList(games, withoutPrice = 0) {
 }
 
 function extractPlaysFromRow(row) {
-  const playsCell = row.querySelector("[class*='plays'], [data-column='plays'], td.plays");
+  const table = row.closest("table");
+  if (table) {
+    const playsColumnIndex = findPlaysColumnIndex(table);
+    if (playsColumnIndex >= 0) {
+      const cell = row.children[playsColumnIndex];
+      const cellText = cell?.textContent?.trim() || "";
+      const exactMatch = cellText.match(/^(\d+)$/);
+      if (exactMatch) {
+        return Number.parseInt(exactMatch[1], 10);
+      }
+      const looseMatch = cellText.match(/(\d+)/);
+      if (looseMatch) {
+        return Number.parseInt(looseMatch[1], 10);
+      }
+    }
+  }
+
+  const playsCell = row.querySelector(
+    "[class*='plays'], [data-column='plays'], td.plays, [aria-label*='Plays']",
+  );
   const cellText = playsCell?.textContent || "";
   const cellMatch = cellText.match(/(\d+)/);
   if (cellMatch) {
@@ -210,6 +229,17 @@ function extractPlaysFromRow(row) {
   return 0;
 }
 
+function findPlaysColumnIndex(table) {
+  const headers = table.querySelectorAll("thead th, thead td, tr th, [role='columnheader']");
+  for (let index = 0; index < headers.length; index += 1) {
+    const label = headers[index].textContent?.trim() || "";
+    if (/your\s+plays|^plays$/i.test(label)) {
+      return index;
+    }
+  }
+  return -1;
+}
+
 function extractXmlNumPlays(item) {
   const playsText = readXmlValue(item.querySelector("numplays"));
   const parsed = Number.parseInt(playsText, 10);
@@ -218,16 +248,20 @@ function extractXmlNumPlays(item) {
 
 function computeGamePayoff(game, costPerPlay) {
   const safeCost = costPerPlay > 0 ? costPerPlay : DEFAULT_COST_PER_PLAY;
-  const numPlays = Number.isFinite(game.numPlays) ? game.numPlays : 0;
+  const basePlays = Number.isFinite(game.basePlays) ? game.basePlays : Number.isFinite(game.numPlays) ? game.numPlays : 0;
+  const linkedExpansionPlays = Number.isFinite(game.linkedExpansionPlays) ? game.linkedExpansionPlays : 0;
+  const effectivePlays = Number.isFinite(game.effectivePlays) ? game.effectivePlays : basePlays + linkedExpansionPlays;
   const playsNeeded = Math.max(1, Math.ceil(game.amount / safeCost));
-  const playsRemaining = Math.max(0, playsNeeded - numPlays);
-  const valueRecovered = Math.min(game.amount, numPlays * safeCost);
+  const playsRemaining = Math.max(0, playsNeeded - effectivePlays);
+  const valueRecovered = Math.min(game.amount, effectivePlays * safeCost);
   const valueRemaining = Math.max(0, game.amount - valueRecovered);
   const progressPercent = Math.min(100, (valueRecovered / game.amount) * 100);
-  const isPaidOff = numPlays >= playsNeeded;
+  const isPaidOff = effectivePlays >= playsNeeded;
 
   return {
-    numPlays,
+    numPlays: basePlays,
+    linkedExpansionPlays,
+    effectivePlays,
     playsNeeded,
     playsRemaining,
     valueRecovered,
@@ -235,6 +269,33 @@ function computeGamePayoff(game, costPerPlay) {
     progressPercent,
     isPaidOff,
   };
+}
+
+function normalizeGameName(name) {
+  if (!name) {
+    return "Unknown game";
+  }
+
+  return name
+    .replace(/^Board\s+Game\s*:\s*/i, "")
+    .replace(/^Boardgame\s*:\s*/i, "")
+    .trim();
+}
+
+function formatPlaysBreakdown(payoff) {
+  if (payoff.linkedExpansionPlays > 0) {
+    return `${payoff.numPlays} base + ${payoff.linkedExpansionPlays} from expansions = ${payoff.effectivePlays} total`;
+  }
+
+  return `${payoff.effectivePlays} play${payoff.effectivePlays === 1 ? "" : "s"}`;
+}
+
+function formatPlaysBreakdownHtml(payoff) {
+  if (payoff.linkedExpansionPlays > 0) {
+    return `${payoff.numPlays} base + ${payoff.linkedExpansionPlays} from expansions = <span class="plays-total">${payoff.effectivePlays}</span> total plays`;
+  }
+
+  return `<span class="plays-total">${payoff.effectivePlays}</span> play${payoff.effectivePlays === 1 ? "" : "s"}`;
 }
 
 function computePayoffSummary(games, costPerPlay) {
@@ -292,12 +353,12 @@ function extractXmlItemName(item) {
   const nameNode = item.querySelector("name");
   const name = readXmlValue(nameNode);
   if (name) {
-    return name;
+    return normalizeGameName(name);
   }
 
   const originalName = readXmlValue(item.querySelector("originalname"));
   if (originalName) {
-    return originalName;
+    return normalizeGameName(originalName);
   }
 
   const objectId = item.getAttribute("objectid");
@@ -313,29 +374,29 @@ function extractNameFromRow(row) {
   if (titleLink) {
     const linkText = titleLink.textContent?.replace(/\s+/g, " ").trim();
     if (linkText) {
-      return linkText;
+      return normalizeGameName(linkText);
     }
 
     const ariaLabel = titleLink.getAttribute("aria-label")?.trim();
     if (ariaLabel) {
-      return ariaLabel;
+      return normalizeGameName(ariaLabel);
     }
 
     const title = titleLink.getAttribute("title")?.trim();
     if (title) {
-      return title;
+      return normalizeGameName(title);
     }
   }
 
   const nameNode = row.querySelector(".collection-title, .primary_name, [class*='title']");
   const nodeText = nameNode?.textContent?.replace(/\s+/g, " ").trim();
   if (nodeText) {
-    return nodeText;
+    return normalizeGameName(nodeText);
   }
 
   const imgAlt = row.querySelector("img[alt]")?.getAttribute("alt")?.trim();
   if (imgAlt && !/^thumbnail$/i.test(imgAlt)) {
-    return imgAlt;
+    return normalizeGameName(imgAlt);
   }
 
   const objectId = extractObjectIdFromRow(row);
@@ -384,6 +445,168 @@ function formatMoney(amount, currency) {
   })} ${currency || ""}`.trim();
 }
 
+function applyLinkedPlaysToGames(games) {
+  for (const game of games) {
+    const linkedExpansions = game.linkedExpansions || [];
+    game.basePlays = game.numPlays;
+    game.linkedExpansionPlays = linkedExpansions.reduce((sum, expansion) => sum + expansion.numPlays, 0);
+    game.effectivePlays = game.numPlays + game.linkedExpansionPlays;
+  }
+}
+
+function extractPrivateInfoTextFromRow(row) {
+  const table = row.closest("table");
+  if (table) {
+    const privateInfoColumnIndex = findPrivateInfoColumnIndex(table);
+    if (privateInfoColumnIndex >= 0) {
+      return row.children[privateInfoColumnIndex]?.textContent || "";
+    }
+  }
+
+  const privateInfoCell = row.querySelector(
+    "[class*='private'], [data-column='private'], td.privateinfo, [aria-label*='Private']",
+  );
+  if (privateInfoCell) {
+    return privateInfoCell.textContent || "";
+  }
+
+  return row.textContent || "";
+}
+
+function isLikelyExpansionRow(row) {
+  if (row.querySelector("a[href*='/boardgameexpansion/']")) {
+    return true;
+  }
+
+  const className = row.className || "";
+  if (/expansion|boardgameexpansion|collectionitem_expansion/i.test(className)) {
+    return true;
+  }
+
+  const rowText = row.textContent || "";
+  if (/\bexpansion for\b|\bexpansion\b/i.test(rowText)) {
+    return true;
+  }
+
+  return row.closest("[class*='expansion']") !== null;
+}
+
+function parseRowFromDom(row) {
+  const privateInfoText = extractPrivateInfoTextFromRow(row);
+  const priceEntry = parsePricePaidFromText(privateInfoText);
+  const priceMatch = privateInfoText.match(PRICE_PAID_PATTERN);
+
+  return {
+    name: extractNameFromRow(row),
+    objectId: extractObjectIdFromRow(row),
+    thumbnail: extractThumbnailFromRow(row),
+    rawPrice: priceMatch?.[1]?.trim() || "",
+    numPlays: extractPlaysFromRow(row),
+    isExpansion: isLikelyExpansionRow(row),
+    amount: priceEntry?.amount ?? null,
+    currency: priceEntry?.currency || "UNKNOWN",
+  };
+}
+
+function parseCollectionFromDom(root = document) {
+  const rows = collectCollectionRows(root);
+  const pricedGames = [];
+  const unpricedExpansions = [];
+  let currentBase = null;
+  let withoutPrice = 0;
+
+  for (const row of rows) {
+    const item = parseRowFromDom(row);
+
+    if (item.amount !== null) {
+      currentBase = {
+        name: item.name,
+        objectId: item.objectId,
+        thumbnail: item.thumbnail,
+        rawPrice: item.rawPrice,
+        numPlays: item.numPlays,
+        amount: item.amount,
+        currency: item.currency,
+        linkedExpansions: [],
+      };
+      pricedGames.push(currentBase);
+      continue;
+    }
+
+    if (currentBase) {
+      const expansionEntry = {
+        name: item.name,
+        objectId: item.objectId,
+        thumbnail: item.thumbnail,
+        numPlays: item.numPlays,
+      };
+
+      currentBase.linkedExpansions.push(expansionEntry);
+      unpricedExpansions.push({
+        ...expansionEntry,
+        linkedBaseId: currentBase.objectId,
+        linkedBaseName: currentBase.name,
+        rollsUpToBase: true,
+      });
+      withoutPrice += 1;
+      continue;
+    }
+
+    unpricedExpansions.push({
+      name: item.name,
+      objectId: item.objectId,
+      thumbnail: item.thumbnail,
+      numPlays: item.numPlays,
+      linkedBaseId: null,
+      linkedBaseName: null,
+      rollsUpToBase: false,
+    });
+    withoutPrice += 1;
+  }
+
+  applyLinkedPlaysToGames(pricedGames);
+
+  const result = finalizeGameList(pricedGames, withoutPrice);
+  result.unpricedExpansions = unpricedExpansions;
+  result.expansionPlaysRolledUp = pricedGames.reduce(
+    (sum, game) => sum + (game.linkedExpansionPlays || 0),
+    0,
+  );
+
+  return result;
+}
+
+function mergeExpansionRollupFromDom(apiResult, domResult) {
+  const domById = new Map(
+    domResult.games.filter((game) => game.objectId).map((game) => [String(game.objectId), game]),
+  );
+  const domByName = new Map(
+    domResult.games.map((game) => [game.name.trim().toLowerCase(), game]),
+  );
+
+  for (const game of apiResult.games) {
+    const domGame =
+      domById.get(String(game.objectId)) || domByName.get(game.name.trim().toLowerCase());
+    if (!domGame?.linkedExpansions?.length) {
+      continue;
+    }
+
+    game.linkedExpansions = domGame.linkedExpansions.map((expansion) => ({ ...expansion }));
+    game.basePlays = game.numPlays;
+    game.linkedExpansionPlays = game.linkedExpansions.reduce(
+      (sum, expansion) => sum + expansion.numPlays,
+      0,
+    );
+    game.effectivePlays = game.numPlays + game.linkedExpansionPlays;
+  }
+
+  apiResult.unpricedExpansions = domResult.unpricedExpansions;
+  apiResult.expansionPlaysRolledUp = apiResult.games.reduce(
+    (sum, game) => sum + (game.linkedExpansionPlays || 0),
+    0,
+  );
+}
+
 function parsePricesFromCollectionXml(xmlText) {
   const doc = new DOMParser().parseFromString(xmlText, "text/xml");
   const parserError = doc.querySelector("parsererror");
@@ -424,72 +647,112 @@ function parsePricesFromCollectionXml(xmlText) {
 }
 
 function parsePricesFromDom(root = document) {
-  const games = [];
-  const seenRowKeys = new Set();
-  let withoutPrice = 0;
+  return parseCollectionFromDom(root);
+}
 
-  const rows = collectCollectionRows(root);
+const SIDEBAR_SELECTOR =
+  "aside, [role='complementary'], nav, header, .header, #navbar, .global-nav, " +
+  "#hotness, .hotness, [class*='hotness'], [class*='minipanel'], [class*='sidebar'], " +
+  "[id*='hotness'], [id*='sidebar'], [class*='recently'], [id*='recently'], " +
+  "[class*='trending'], [id*='trending']";
 
-  for (const row of rows) {
-    const rowKey = row.dataset?.bggRowKey || String(rows.indexOf(row));
-    if (seenRowKeys.has(rowKey)) {
-      continue;
-    }
-    seenRowKeys.add(rowKey);
+function isExcludedSidebarElement(element) {
+  return Boolean(element?.closest(SIDEBAR_SELECTOR));
+}
 
-    const rowText = row.textContent || "";
-    if (!PRICE_PAID_PATTERN.test(rowText)) {
-      continue;
-    }
+function getCollectionHeaderText(table) {
+  return Array.from(table.querySelectorAll("thead th, thead td, tr th, [role='columnheader']"))
+    .map((cell) => cell.textContent?.trim() || "")
+    .join(" ");
+}
 
-    const titleLink =
-      row.querySelector("a[href*='/boardgame/'], a[href*='/boardgameexpansion/']") ||
-      row.querySelector("a.primary, td.title a, .collection-title a");
-    const name = extractNameFromRow(row);
-    const objectId = extractObjectIdFromRow(row);
-    const thumbnail = extractThumbnailFromRow(row);
-    const priceMatch = rowText.match(PRICE_PAID_PATTERN);
-    const rawPrice = priceMatch?.[1]?.trim() || "";
-    const entry = parsePricePaidFromText(rowText);
-
-    if (!entry) {
-      withoutPrice += 1;
-      continue;
-    }
-
-    games.push({
-      name,
-      objectId,
-      thumbnail,
-      rawPrice,
-      numPlays: extractPlaysFromRow(row),
-      ...entry,
-    });
+function isCollectionTable(table) {
+  if (!table || isExcludedSidebarElement(table)) {
+    return false;
   }
 
-  return finalizeGameList(games, withoutPrice);
+  const headerText = getCollectionHeaderText(table);
+  const hasCollectionColumns =
+    /private\s*info/i.test(headerText) ||
+    /user\s+plays/i.test(headerText) ||
+    (/title/i.test(headerText) && /geek\s+rating|status|version/i.test(headerText));
+
+  if (!hasCollectionColumns) {
+    return false;
+  }
+
+  return Boolean(
+    table.querySelector(
+      "tbody a[href*='/boardgame/'], tbody a[href*='/boardgameexpansion/'], " +
+        "tr a[href*='/boardgame/'], tr a[href*='/boardgameexpansion/']",
+    ),
+  );
+}
+
+function findCollectionTable(root) {
+  const containerSelectors = [
+    "#colresults",
+    "#collection_results",
+    "#results_table",
+    "#collection_table",
+    "[id*='collection'][id*='result']",
+  ];
+
+  for (const selector of containerSelectors) {
+    const container = root.querySelector(selector);
+    if (!container || isExcludedSidebarElement(container)) {
+      continue;
+    }
+
+    const table =
+      container.tagName === "TABLE" ? container : container.querySelector("table");
+    if (table && isCollectionTable(table)) {
+      return table;
+    }
+  }
+
+  for (const table of root.querySelectorAll("table.collection, table")) {
+    if (isCollectionTable(table)) {
+      return table;
+    }
+  }
+
+  return null;
+}
+
+function findCollectionListContainer(root) {
+  const table = findCollectionTable(root);
+  if (table) {
+    return table;
+  }
+
+  const containerSelectors = ["#colresults", "#collection_results", "#results_table"];
+  for (const selector of containerSelectors) {
+    const container = root.querySelector(selector);
+    if (container && !isExcludedSidebarElement(container)) {
+      return container;
+    }
+  }
+
+  return null;
 }
 
 function collectCollectionRows(root) {
   const rows = [];
   const seenElements = new Set();
+  const collectionTable = findCollectionTable(root);
 
   const addRow = (row) => {
-    if (!row || seenElements.has(row)) {
+    if (!row || seenElements.has(row) || isExcludedSidebarElement(row)) {
       return;
     }
+
     seenElements.add(row);
     rows.push(row);
   };
 
-  for (const row of root.querySelectorAll("table tbody tr")) {
-    if (row.querySelector("a[href*='/boardgame/'], a[href*='/boardgameexpansion/']")) {
-      addRow(row);
-    }
-  }
-
-  if (rows.length === 0) {
-    for (const row of root.querySelectorAll("[data-testid*='collection'] tr, tr.collection-item")) {
+  if (collectionTable) {
+    for (const row of collectionTable.querySelectorAll("tbody tr")) {
       if (row.querySelector("a[href*='/boardgame/'], a[href*='/boardgameexpansion/']")) {
         addRow(row);
       }
@@ -497,9 +760,14 @@ function collectCollectionRows(root) {
   }
 
   if (rows.length === 0) {
-    for (const item of root.querySelectorAll(".collectionitem, .collection-item, .geekcollection-item")) {
-      if (PRICE_PAID_PATTERN.test(item.textContent || "")) {
-        addRow(item);
+    const collectionContainer = findCollectionListContainer(root);
+    if (collectionContainer) {
+      for (const row of collectionContainer.querySelectorAll(
+        "[class*='collection-item'], [class*='collectionitem'], .geekcollection-item",
+      )) {
+        if (row.querySelector("a[href*='/boardgame/'], a[href*='/boardgameexpansion/']")) {
+          addRow(row);
+        }
       }
     }
   }
@@ -518,12 +786,20 @@ function findPrivateInfoColumnIndex(table) {
 }
 
 function hasPrivateInfoOnPage(root = document) {
-  if (PRICE_PAID_PATTERN.test(root.body?.textContent || "")) {
+  const table = findCollectionTable(root);
+  if (table) {
+    if (PRICE_PAID_PATTERN.test(table.textContent || "")) {
+      return true;
+    }
+    return findPrivateInfoColumnIndex(table) >= 0;
+  }
+
+  const collectionContainer = findCollectionListContainer(root);
+  if (collectionContainer && PRICE_PAID_PATTERN.test(collectionContainer.textContent || "")) {
     return true;
   }
 
-  const table = root.querySelector("table");
-  return table ? findPrivateInfoColumnIndex(table) >= 0 : false;
+  return false;
 }
 
 function sleep(ms) {
@@ -617,13 +893,15 @@ async function calculatePricePaidTotal() {
     collectionUsername.toLowerCase() === loggedInUsername.toLowerCase();
 
   let source = "dom";
-  let result = parsePricesFromDom(document);
+  const domResult = parseCollectionFromDom(document);
+  let result = domResult;
 
   if (isOwnCollection) {
     try {
       const xml = await fetchOwnCollectionXml(collectionUsername, pageFilters);
       const apiResult = parsePricesFromCollectionXml(xml);
-      if (apiResult.withPrice > 0 || result.withPrice === 0) {
+      mergeExpansionRollupFromDom(apiResult, domResult);
+      if (apiResult.withPrice > 0 || domResult.withPrice === 0) {
         result = apiResult;
         source = "api";
       }
@@ -631,6 +909,7 @@ async function calculatePricePaidTotal() {
       if (result.withPrice === 0) {
         throw error;
       }
+      mergeExpansionRollupFromDom(result, domResult);
       result.warning = `Could not load the full collection from BGG (${error.message}). Showing prices found on the current page only.`;
       source = "dom-partial";
     }
@@ -671,6 +950,9 @@ if (typeof globalThis !== "undefined") {
     finalizeGameList,
     computeGamePayoff,
     computePayoffSummary,
+    formatPlaysBreakdown,
+    formatPlaysBreakdownHtml,
+    normalizeGameName,
     getDefaultPayoffSettings,
     SETTINGS_KEY,
     DEFAULT_COST_PER_PLAY,

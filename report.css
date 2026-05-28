@@ -351,6 +351,15 @@ h1 {
     grid-column: 2;
     text-align: left;
   }
+
+  .expansion-row {
+    grid-template-columns: 56px 1fr;
+  }
+
+  .expansion-row .badge {
+    grid-column: 2;
+    justify-self: start;
+  }
 }
 
 .game-thumb {
@@ -377,6 +386,126 @@ h1 {
 .game-meta {
   margin-top: 4px;
   font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.linked-expansions {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.linked-expansions li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.linked-expansion-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.linked-expansion-plays {
+  color: var(--muted);
+}
+
+.game-meta .plays-total {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--accent);
+}
+
+.collapsible-section {
+  margin-top: 28px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.collapsible-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+}
+
+.collapsible-summary::-webkit-details-marker {
+  display: none;
+}
+
+.collapsible-title::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 8px;
+  transition: transform 0.15s ease;
+}
+
+details[open] > .collapsible-summary .collapsible-title::before {
+  transform: rotate(90deg);
+}
+
+.collapsible-count {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.expansions-panel .section-help {
+  margin: 0;
+  padding: 0 16px 14px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.expansions-list {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 16px;
+}
+
+.expansion-row {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.expansion-info {
+  min-width: 0;
+}
+
+.expansion-name {
+  font-weight: 600;
+}
+
+.expansion-meta {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.badge-neutral {
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  color: var(--accent);
+}
+
+.badge-muted {
+  background: color-mix(in srgb, var(--border) 50%, var(--card));
   color: var(--muted);
 }
 

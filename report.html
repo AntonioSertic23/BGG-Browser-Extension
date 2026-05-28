@@ -74,6 +74,20 @@
 
       <section id="games" class="games hidden"></section>
 
+      <section id="expansions-panel" class="expansions-panel collapsible-section hidden">
+        <details id="expansions-details">
+          <summary class="collapsible-summary">
+            <span class="collapsible-title">Unpriced expansions</span>
+            <span id="expansions-summary-count" class="collapsible-count"></span>
+          </summary>
+          <p class="section-help">
+            These have no Price Paid on BGG. Plays from linked expansions are counted toward the base game above.
+            Add a price later to track payoff separately.
+          </p>
+          <div id="expansions-list" class="expansions-list"></div>
+        </details>
+      </section>
+
       <footer id="verify" class="verify hidden"></footer>
     </main>
     <script src="price-parser.js"></script>
