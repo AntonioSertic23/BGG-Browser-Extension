@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BGG Price Paid Report</title>
+    <link rel="stylesheet" href="report.css" />
+  </head>
+  <body>
+    <main>
+      <header class="page-header">
+        <div>
+          <h1>Price Paid Report</h1>
+          <p id="subtitle" class="subtitle">Loading collection data...</p>
+        </div>
+        <div id="summary-totals" class="summary-totals"></div>
+      </header>
+
+      <section id="status" class="status">Loading...</section>
+
+      <section id="settings" class="settings hidden">
+        <div class="settings-card">
+          <h2>Cost per play</h2>
+          <p class="settings-help">
+            A game is paid off once you have played it enough times to match its price at this rate.
+          </p>
+          <div class="settings-row">
+            <label class="setting-field">
+              Value per play
+              <input id="cost-per-play" type="number" min="0.01" step="0.01" value="1" />
+            </label>
+            <label class="setting-field">
+              Currency
+              <select id="cost-currency">
+                <option value="EUR">EUR (€)</option>
+                <option value="USD">USD ($)</option>
+                <option value="GBP">GBP (£)</option>
+                <option value="HRK">HRK (kn)</option>
+                <option value="PLN">PLN (zł)</option>
+                <option value="CZK">CZK (Kč)</option>
+                <option value="SEK">SEK (kr)</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section id="payoff-summary" class="payoff-summary hidden"></section>
+
+      <section id="controls" class="controls hidden">
+        <input id="search" type="search" placeholder="Search games..." />
+        <label class="sort-label">
+          View
+          <select id="view-filter">
+            <option value="not-paid-off">Not paid off</option>
+            <option value="paid-off">Paid off</option>
+            <option value="all">All games</option>
+          </select>
+        </label>
+        <label class="sort-label">
+          Sort by
+          <select id="sort">
+            <option value="plays-remaining-desc">Plays remaining (most first)</option>
+            <option value="progress-desc">Progress (highest first)</option>
+            <option value="progress-asc">Progress (lowest first)</option>
+            <option value="price-desc">Price (high to low)</option>
+            <option value="price-asc">Price (low to high)</option>
+            <option value="name">Name (A–Z)</option>
+          </select>
+        </label>
+      </section>
+
+      <section id="notice" class="notice hidden"></section>
+
+      <section id="games" class="games hidden"></section>
+
+      <footer id="verify" class="verify hidden"></footer>
+    </main>
+    <script src="price-parser.js"></script>
+    <script src="report.js"></script>
+  </body>
+</html>

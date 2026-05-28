@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "BGG Price Paid Total",
+  "version": "1.2.3",
+  "description": "Sum the Price Paid values from your BoardGameGeek collection Private Info.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["https://boardgamegeek.com/*"],
+  "action": {
+    "default_title": "Calculate BGG Price Paid Total",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://boardgamegeek.com/collection/*"],
+      "js": ["price-parser.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

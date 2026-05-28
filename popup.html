@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BGG Price Paid Total</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Price Paid Total</h1>
+        <p class="subtitle">BoardGameGeek collection summary</p>
+      </header>
+
+      <section id="status" class="status loading">Calculating totals...</section>
+
+      <section id="results" class="results hidden">
+        <div id="totals" class="totals"></div>
+        <dl class="meta">
+          <div>
+            <dt>Games with price</dt>
+            <dd id="with-price">-</dd>
+          </div>
+          <div>
+            <dt>Games without price</dt>
+            <dd id="without-price">-</dd>
+          </div>
+          <div>
+            <dt>Data source</dt>
+            <dd id="source">-</dd>
+          </div>
+        </dl>
+        <p id="warning" class="warning hidden"></p>
+        <button id="open-report" type="button" class="report-button hidden">Open detailed report</button>
+      </section>
+    </main>
+    <script src="price-parser.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
